@@ -7,7 +7,7 @@
 
 #include <stdbool.h>
 
-#define N 5
+#define N 4     // N = order + 1
 
 typedef struct BPlusTreeNode {
     bool is_leaf;
