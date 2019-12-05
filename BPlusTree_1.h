@@ -7,7 +7,7 @@
 
 #include <stdbool.h>
 
-#define N 3
+#define N 5
 
 typedef struct BPlusTreeNode {
     bool is_leaf;
@@ -20,8 +20,12 @@ typedef struct BPlusTreeNode {
 
 btree_node *btree_node_new();
 
+btree_node *btree_node_create();
+
 btree_node *insert(btree_node *root, int target);
 
 btree_node *delete(btree_node *root, int target); // 删除一个符合条件的值
+
+void btree_print(btree_node *root);
 
 #endif //BPLUSTREE_BPLUSTREE_1_H
