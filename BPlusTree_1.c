@@ -96,6 +96,8 @@ void getFromBrother(btree_node *node, int *status);
 
 btree_node *findLeftBrother(btree_node *node);
 
+void deleteOrModifyChildNode(btree_node *node, btree_node *parent_node, int key, bool is_delete);
+
 btree_node *delete(btree_node *root, int target) { // 删除一个符合条件的值
     btree_node *node = root;
     while (!node->is_leaf) {
@@ -127,13 +129,38 @@ btree_node *delete(btree_node *root, int target) { // 删除一个符合条件�
         }
         node->keyNum--;
         int keyNum = node->keyNum;
+        if (node->parent == NULL) {
+            return root;
+        }
         while (node->parent != NULL) {    //说明不是根节点
+            int status = 0;
             if (keyNum < (N >> 1)) { // B+树的非根节点的分支树必须大于threshold，需要向兄弟节点借一个节点，或者与兄弟节点进行合并
-                getFromBrother(node,)
+                getFromBrother(node, &status);
             }
-
+            if (status == 2) {  //与左节点合并，则需要删除父节点相关信息
+                deleteOrModifyChildNode(node, node->parent, 0, true); //此时为删除节点，key值无用
+                node = node->parent; //指向父节点，进行递归
+                keyNum = node->keyNum;
+            } else if (status == 4) { //与右节点合并
+                if (position == 0) {  //同时说明该节点的第一个元素被删除掉了，需要修改
+                    deleteOrModifyChildNode(node, node->parent, node->keys[0], false);
+                    position = (position == 0 ? 1 : position); //只修改一次
+                }
+                deleteOrModifyChildNode(node->brother, node->parent, 0, true);
+                node = node->parent;
+                keyNum = node->keyNum;
+            } else if (status == 1 || position == 0) { //第一个值 则需要修改 父节点的值
+                deleteOrModifyChildNode(node, node->parent, node->keys[0], false);
+                break;
+            } else if (status == 0 || status == 3) {
+                break;
+            }
+        }
+        if (node->parent == NULL && node->keyNum < 2) {  //此时需要调整根节点, 将根节点的字节点作为根节点
+            return node->rids[0];
         }
     }
+    return root;
 }
 
 void getFromLeft(btree_node *node, btree_node *left_node, int *status);
@@ -145,12 +172,55 @@ void getFromBrother(btree_node *node, int *status) {
     left_node = findLeftBrother(node);
     if (left_node == NULL) { // 左兄弟存在，对左兄弟进行处理
         getFromLeft(node, left_node, status);
+        // 向左借 在外部处理， 因为向左借和 position=0 情况会有冲突，
+//        if (*status == 1) {
+//            deleteOrModifyChildNode(node, node->parent, node->keys[0], false);
+//        }
     } else {   //只能在右兄弟节点进行处理
         getFromRight(node, node->brother, status);
 
         // todo
-        if (*status == 3) { // 向右节点借一个关键字，后递归修改父节点
+        if (*status == 3) { // 向右节点借一个关键字，这时只需要修改一个父节点关键字
+            deleteOrModifyChildNode(node->brother, node->parent, node->brother->keys[0], false);
+        }
+    }
+}
 
+/**
+ *
+ * @param node
+ * @param parent_node
+ * @param key
+ * @param is_delete  true: delete an entry of parent node; false modify an entry of parent node
+ */
+void deleteOrModifyChildNode(btree_node *node, btree_node *parent_node, int key, bool is_delete) {
+    btree_node *node_copy = node;
+    btree_node *parent_copy = parent_node;
+    while (true) {
+        if (is_delete) {
+            for (int i = 0;; ++i) {
+                btree_node *temp_node = parent_copy->rids[i];
+                if (temp_node == node_copy) {
+                    for (int j = i; j < parent_copy->keyNum - 1; ++j) {
+                        parent_copy->keys[j] = parent_copy->keys[j + 1];
+                        parent_copy->rids[j] = parent_copy->rids[j + 1];
+                    }
+                    parent_copy->keyNum--;
+                    return;
+                }
+            }
+        } else {   //修改操作
+            for (int i = 0;; ++i) {
+                btree_node *temp_node = parent_copy->rids[i];
+                if (temp_node == node_copy) {
+                    parent_node->keys[i] = key;
+                    if (i == 0 && parent_copy->parent != NULL) { //首节点需要递归处理
+                        node_copy = parent_copy;
+                        parent_copy = parent_copy->parent;
+                    } else
+                        return;
+                }
+            }
         }
     }
 }
